@@ -4,6 +4,9 @@ import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
 from scipy import stats
 from scipy.stats import norm
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
 # Load dataset
 df = pd.read_excel("C:/Users/kr360/Downloads/Online Retail.xlsx")
 
@@ -14,15 +17,15 @@ print(df.info())
 
 
 # REMOVE MISSING VALUES
-# ==============================
+
 df = df.dropna(subset=['CustomerID'])
 
 #REMOVE DUPLICATES
-# ==============================
+
 df = df.drop_duplicates()
 
 #FIX DATA TYPES
-# ==============================
+
 df['InvoiceDate'] = pd.to_datetime(df['InvoiceDate'])
 df['CustomerID'] = df['CustomerID'].astype(int)
 #print(df.info())
@@ -33,7 +36,7 @@ df = df[df['Quantity'] > 0]
 df = df[df['UnitPrice'] > 0]
 
 # CREATING NEW FEATURES
-# ==============================
+
 df['TotalPrice'] = df['Quantity'] * df['UnitPrice']
 
 df['Year'] = df['InvoiceDate'].dt.year
@@ -43,8 +46,7 @@ df['Hour'] = df['InvoiceDate'].dt.hour
 
 
 
-#HANDLE OUTLIERS (IMPORTANT)
-# ==============================
+#HANDLE OUTLIERS
 
 # Remove extreme quantity outliers
 q_low = df['Quantity'].quantile(0.01)
@@ -58,12 +60,11 @@ df = df[(df['UnitPrice'] >= p_low) & (df['UnitPrice'] <= p_high)]
 
 # No outlier found
 
-#SORT DATA (VERY IMPORTANT)
-# ==============================
+#SORT DATA 
 df = df.sort_values(by='InvoiceDate')
 
 #FINAL CHECK
-# ==============================
+
 print("Shape:", df.shape)
 print("Missing values:\n", df.isnull().sum())
 print(df.head())
@@ -139,3 +140,65 @@ plt.hist(log_data, bins=50, density=True)
 plt.plot(x, y)
 plt.title("Normal Distribution (Log Transformed)")
 plt.show()
+
+# HYPOTHESIS TESTING
+
+
+# Create weekday feature
+df['Weekday'] = df['InvoiceDate'].dt.weekday  # 0=Monday, 6=Sunday
+
+# Separate data
+weekend_sales = df[df['Weekday'] >= 5]['TotalPrice']
+weekday_sales = df[df['Weekday'] < 5]['TotalPrice']
+
+# Perform T-test
+t_stat, p_value = stats.ttest_ind(weekend_sales, weekday_sales)
+
+print("T-statistic:", t_stat)
+print("P-value:", p_value)
+
+# Decision
+alpha = 0.05
+if p_value < alpha:
+    print("Reject Null Hypothesis → Sales differ on weekends vs weekdays")
+else:
+    print("Fail to Reject Null → No significant difference")
+
+# Features & Target
+X = df[['Quantity', 'UnitPrice', 'Month', 'Day', 'Hour']]
+y = df['TotalPrice']
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+# Initialize model
+model = LinearRegression()
+
+# TRAIN MODEL
+model.fit(X_train, y_train)
+
+print("Model trained successfully")
+
+# PREDICTION
+y_pred = model.predict(X_test)
+
+# Compare actual vs predicted
+comparison = pd.DataFrame({
+    'Actual': y_test.values,
+    'Predicted': y_pred
+})
+
+print(comparison.head())
+
+# MODEL EVALUATION
+mse = mean_squared_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+print("Mean Squared Error:", mse)
+print("R2 Score:", r2)
+
+# Feature importance (for linear regression)
+coeff_df = pd.DataFrame(model.coef_, X.columns, columns=['Coefficient'])
+print(coeff_df)
